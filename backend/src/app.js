@@ -5,8 +5,14 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
+import authRoutes from "./routes/authRoutes.js";
 
 import healthRoutes from "./routes/healthRoutes.js";
+import propertyRoutes from "./routes/propertyRoutes.js";
+import bookmarkRoutes from "./routes/bookmarkRoutes.js";
+import visitRoutes from "./routes/visitRoutes.js";
+import conversationRoutes from "./routes/conversationRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const app = express();
 
@@ -44,6 +50,16 @@ app.use(
 
 // Health check
 app.use("/api/health", healthRoutes);
+
+// Authentication routes
+app.use("/api/auth", authRoutes);
+
+app.use("/api/properties", propertyRoutes);
+
+app.use("/api/bookmarks", bookmarkRoutes);
+app.use("/api/visits", visitRoutes);
+app.use("/api/conversations", conversationRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Welcome route
 app.get("/", (req, res) => {

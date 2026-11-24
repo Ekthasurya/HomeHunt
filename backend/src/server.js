@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 
 import app from "./app.js";
 import connectDB from "./config/db.js";
+import socketHandler from "./sockets/socketHandler.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,6 +25,9 @@ const startServer = async () => {
         credentials: true
       }
     });
+
+    socketHandler(io);
+    app.set("io", io);
 
     io.on("connection", (socket) => {
       console.log("Socket connected:", socket.id);
