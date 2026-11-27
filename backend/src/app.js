@@ -25,7 +25,6 @@ const app = express();
 
 // Allowed frontend origins
 const allowedOrigins = [
-  "http://localhost:5173",
   "https://home-hunt-iota.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean);

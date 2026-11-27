@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -44,16 +43,14 @@ import Notifications from "./pages/Notifications";
 function App() {
   const dispatch = useDispatch();
 
-  const { isAuthenticated, initialized } = useSelector(
-    (state) => state.auth
-  );
+  const { isAuthenticated, initialized } = useSelector((state) => state.auth);
 
   // Restore login session
   useEffect(() => {
     const restoreSession = async () => {
       try {
         const result = await dispatch(fetchCurrentUser()).unwrap();
-        console.log("SESSION RESTORED:", result.user);
+        console.log("SESSION RESTORED:", result);
       } catch (error) {
         console.error("SESSION RESTORATION FAILED:", error);
       }
