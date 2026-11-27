@@ -1,5 +1,8 @@
+
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+
 import {
   UserRound,
   Mail,
@@ -10,12 +13,18 @@ import {
   User,
   BriefcaseBusiness,
   ArrowRight,
-  CheckCircle,
+  CheckCircle
 } from "lucide-react";
 
 import AuthLayout from "../layouts/AuthLayout";
+import { register } from "../app/slices/authSlice";
 
 export default function Register() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const { loading } = useSelector((state) => state.auth);
+
   const [role, setRole] = useState("buyer");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -28,7 +37,7 @@ export default function Register() {
     phone: "",
     password: "",
     confirmPassword: "",
-    terms: false,
+    terms: false
   });
 
   const handleChange = (e) => {
@@ -36,14 +45,14 @@ export default function Register() {
 
     setFormData((previous) => ({
       ...previous,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : value
     }));
 
     setError("");
     setSuccess(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -82,9 +91,29 @@ export default function Register() {
       return;
     }
 
-    // UI demonstration only. No account is created yet.
-    setSuccess(true);
-    setError("");
+    try {
+      await dispatch(
+        register({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          password: formData.password,
+          role
+        })
+      ).unwrap();
+
+      setSuccess(true);
+      setError("");
+
+      // Registration automatically logs in the new user.
+      navigate("/");
+    } catch (err) {
+      setError(
+        typeof err === "string"
+          ? err
+          : "Registration failed. Please try again."
+      );
+    }
   };
 
   return (
@@ -140,6 +169,7 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
           {/* FULL NAME */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -231,7 +261,11 @@ export default function Register() {
                 aria-label="Toggle password visibility"
                 className="text-slate-400"
               >
-                {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                {showPassword ? (
+                  <EyeOff size={19} />
+                ) : (
+                  <Eye size={19} />
+                )}
               </button>
             </div>
           </div>
@@ -257,11 +291,17 @@ export default function Register() {
 
               <button
                 type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                onClick={() =>
+                  setShowConfirmPassword(!showConfirmPassword)
+                }
                 aria-label="Toggle confirm password visibility"
                 className="text-slate-400"
               >
-                {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                {showConfirmPassword ? (
+                  <EyeOff size={19} />
+                ) : (
+                  <Eye size={19} />
+                )}
               </button>
             </div>
           </div>
@@ -281,7 +321,7 @@ export default function Register() {
               <span className="text-blue-600 font-semibold">
                 Terms and Conditions
               </span>
-              and Privacy Policy.
+              {" "}and Privacy Policy.
             </span>
           </label>
 
@@ -298,23 +338,29 @@ export default function Register() {
               <CheckCircle size={20} className="shrink-0" />
 
               <p className="text-sm">
-                Registration form validated successfully. Backend account
-                creation will be connected later.
+                Account created successfully!
               </p>
             </div>
           )}
 
+          {/* REGISTER BUTTON */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition"
           >
-            Create Account <ArrowRight size={19} />
+            {loading ? "Creating Account..." : "Create Account"}
+            {!loading && <ArrowRight size={19} />}
           </button>
+
         </form>
 
         <p className="text-center text-sm text-slate-600 mt-7">
           Already have an account?{" "}
-          <Link to="/login" className="text-blue-600 font-bold hover:underline">
+          <Link
+            to="/login"
+            className="text-blue-600 font-bold hover:underline"
+          >
             Login
           </Link>
         </p>

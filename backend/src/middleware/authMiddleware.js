@@ -2,18 +2,14 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-// Verify JWT and authenticate user
+// Protect routes (authentication required)
 export const protect = async (req, res, next) => {
   try {
     let token;
 
-    // First check HTTP-only cookie
     if (req.cookies?.token) {
       token = req.cookies.token;
-    }
-
-    // Also support Bearer token
-    else if (
+    } else if (
       req.headers.authorization?.startsWith("Bearer ")
     ) {
       token = req.headers.authorization.split(" ")[1];
@@ -22,60 +18,97 @@ export const protect = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Not authorized. Please log in."
+        message: "Not authorized. No token provided.",
       });
     }
 
-    // Verify JWT
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Find user
-    const user = await User.findById(decoded.id);
+    const user = await User.findOne({
+      _id: decoded.id,
+      isActive: true,
+      deletedAt: null,
+    });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "User account not found"
+        message: "Account inactive or deleted. Please log in again.",
       });
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is inactive"
-      });
-    }
-
-    // Attach user to request
     req.user = user;
 
     next();
-
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired authentication token"
+      message: "Not authorized. Invalid or expired token.",
     });
   }
 };
 
-// Check user roles
+
+// Optional authentication (public routes)
+export const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.cookies?.token) {
+      token = req.cookies.token;
+    } else if (
+      req.headers.authorization?.startsWith("Bearer ")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    // No token: continue as a guest
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findOne({
+      _id: decoded.id,
+      isActive: true,
+      deletedAt: null,
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Account inactive or deleted. Please log in again.",
+      });
+    }
+
+    req.user = user;
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: "Not authorized. Invalid or expired token.",
+    });
+  }
+};
+
+
+// Restrict routes by role
 export const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required"
+        message: "Authentication required.",
       });
     }
 
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: "You do not have permission to access this resource"
+        message: "Access denied. Insufficient permissions.",
       });
     }
 

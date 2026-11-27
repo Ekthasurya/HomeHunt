@@ -1,28 +1,41 @@
-
 import express from "express";
-
 import upload from "../middleware/uploadMiddleware.js";
-import { uploadPropertyImages } from "../controllers/propertyController.js";
+
+import {
+  protect,
+  optionalProtect,
+  authorizeRoles,
+} from "../middleware/authMiddleware.js";
 
 import {
   createProperty,
   getProperties,
+  getManagedProperties,
   getPropertyById,
   updateProperty,
-  deleteProperty
+  deleteProperty,
+  uploadPropertyImages,
 } from "../controllers/propertyController.js";
 
-import {
-  protect,
-  authorizeRoles
-} from "../middleware/authMiddleware.js";
+
 
 const router = express.Router();
 
 // Public routes
 router.get("/", getProperties);
-router.get("/:id", getPropertyById);
 
+// IMPORTANT: Keep /manage before /:id
+router.get(
+  "/manage",
+  protect,
+  authorizeRoles("agent", "admin"),
+  getManagedProperties
+);
+
+// Property by ID
+router.get("/:id", optionalProtect, getPropertyById);
+
+// Protected property routes
 router.post(
   "/upload-images",
   protect,
@@ -31,7 +44,6 @@ router.post(
   uploadPropertyImages
 );
 
-// Protected routes
 router.post(
   "/",
   protect,

@@ -33,7 +33,6 @@ const getSafeUser = (user) => ({
 });
 
 // REGISTER USER
-
 export const registerUser = async (req, res) => {
   try {
     const {
@@ -45,7 +44,6 @@ export const registerUser = async (req, res) => {
       avatar
     } = req.body;
 
-    // Check required fields
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -53,7 +51,6 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Validate password length
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -61,9 +58,7 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Only allow buyer and agent registration
     const allowedRoles = ["buyer", "agent"];
-
     const userRole = role || "buyer";
 
     if (!allowedRoles.includes(userRole)) {
@@ -73,7 +68,6 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Check existing user
     const existingUser = await User.findOne({
       email: email.trim().toLowerCase()
     });
@@ -81,11 +75,12 @@ export const registerUser = async (req, res) => {
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: "Email is already registered"
+        message: existingUser.deletedAt
+          ? "This email belongs to a deleted account. Please contact support."
+          : "Email is already registered"
       });
     }
 
-    // Create user
     const user = await User.create({
       name,
       email,
@@ -95,10 +90,8 @@ export const registerUser = async (req, res) => {
       avatar: avatar || ""
     });
 
-    // Generate token
     const token = generateToken(user._id);
 
-    // Set cookie
     setTokenCookie(res, token);
 
     return res.status(201).json({
@@ -106,7 +99,6 @@ export const registerUser = async (req, res) => {
       message: "Registration successful",
       user: getSafeUser(user)
     });
-
   } catch (error) {
     console.error("Registration Error:", error);
 
@@ -117,13 +109,11 @@ export const registerUser = async (req, res) => {
   }
 };
 
-
 // LOGIN USER
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check required fields
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -131,7 +121,6 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Find user and include password
     const user = await User.findOne({
       email: email.trim().toLowerCase()
     }).select("+password");
@@ -143,7 +132,15 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Check account status
+    // Block soft-deleted accounts
+    if (user.deletedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "This account has been deleted. Please contact support."
+      });
+    }
+
+    // Block inactive accounts
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
@@ -151,7 +148,6 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Compare password
     const isPasswordValid = await user.comparePassword(password);
 
     if (!isPasswordValid) {
@@ -161,10 +157,8 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Generate token
     const token = generateToken(user._id);
 
-    // Set cookie
     setTokenCookie(res, token);
 
     return res.status(200).json({
@@ -172,7 +166,6 @@ export const loginUser = async (req, res) => {
       message: "Login successful",
       user: getSafeUser(user)
     });
-
   } catch (error) {
     console.error("Login Error:", error);
 
@@ -197,8 +190,6 @@ export const logoutUser = (req, res) => {
   });
 };
 
-
-
 // GET CURRENT LOGGED-IN USER
 export const getMe = async (req, res) => {
   try {
@@ -216,14 +207,11 @@ export const getMe = async (req, res) => {
   }
 };
 
-
-
 // UPDATE USER PROFILE
 export const updateMe = async (req, res) => {
   try {
     const { name, phone, avatar } = req.body;
 
-    // Validate name
     if (name !== undefined) {
       if (typeof name !== "string" || name.trim().length < 2) {
         return res.status(400).json({
@@ -235,7 +223,6 @@ export const updateMe = async (req, res) => {
       req.user.name = name.trim();
     }
 
-    // Update phone
     if (phone !== undefined) {
       if (typeof phone !== "string") {
         return res.status(400).json({
@@ -247,7 +234,6 @@ export const updateMe = async (req, res) => {
       req.user.phone = phone.trim();
     }
 
-    // Update avatar URL
     if (avatar !== undefined) {
       if (typeof avatar !== "string") {
         return res.status(400).json({
@@ -266,7 +252,6 @@ export const updateMe = async (req, res) => {
       message: "Profile updated successfully",
       user: getSafeUser(req.user)
     });
-
   } catch (error) {
     console.error("Update Profile Error:", error);
 
@@ -276,4 +261,3 @@ export const updateMe = async (req, res) => {
     });
   }
 };
-

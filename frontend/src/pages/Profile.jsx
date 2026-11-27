@@ -1,5 +1,7 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
 import {
   User,
   Mail,
@@ -11,27 +13,47 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { updateProfile } from "../app/slices/authSlice";
+
 function Profile() {
+  const dispatch = useDispatch();
+
+  const { user, loading } = useSelector((state) => state.auth);
+
   const [isEditing, setIsEditing] = useState(false);
+  const [avatar, setAvatar] = useState(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
 
   const [profile, setProfile] = useState({
-    name: "Surya Kiran",
-    email: "surya@example.com",
-    phone: "9876543210",
-    role: "Buyer",
-    location: "Kolkata, West Bengal",
+    name: "",
+    email: "",
+    phone: "",
+    role: "buyer",
   });
 
-  const [avatar, setAvatar] = useState(null);
+  // Load logged-in user details
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        role: user.role || "buyer",
+      });
+    }
+  }, [user]);
 
-  const [passwords, setPasswords] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
+  // Clean up temporary avatar preview URL
+  useEffect(() => {
+    return () => {
+      if (avatar?.startsWith("blob:")) {
+        URL.revokeObjectURL(avatar);
+      }
+    };
+  }, [avatar]);
 
-  const [message, setMessage] = useState("");
-
+  // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -41,53 +63,73 @@ function Profile() {
     }));
   };
 
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-
-    setPasswords((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
+  // Avatar preview only
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
 
-    if (file) {
-      setAvatar(URL.createObjectURL(file));
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setMessageType("error");
+      setMessage("Please select a valid image.");
+      return;
+    }
+
+    setAvatar(URL.createObjectURL(file));
+    setMessage("");
+  };
+
+  // Save profile to MongoDB
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+
+    setMessage("");
+
+    if (!profile.name.trim()) {
+      setMessageType("error");
+      setMessage("Name is required.");
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateProfile({
+          name: profile.name.trim(),
+          phone: profile.phone.trim(),
+        })
+      ).unwrap();
+
+      setIsEditing(false);
+      setMessageType("success");
+      setMessage("Profile updated successfully.");
+    } catch (error) {
+      setMessageType("error");
+
+      setMessage(
+        typeof error === "string"
+          ? error
+          : error?.message || "Unable to update profile."
+      );
     }
   };
 
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
-
+  // Cancel editing and restore original data
+  const handleCancel = () => {
     setIsEditing(false);
-    setMessage("Profile updated successfully (demo only).");
+    setAvatar(null);
 
-    setTimeout(() => setMessage(""), 3000);
-  };
-
-  const handlePasswordUpdate = (e) => {
-    e.preventDefault();
-
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      setMessage("New password and confirmation do not match.");
-      return;
-    }
-
-    if (passwords.newPassword.length < 8) {
-      setMessage("Password must contain at least 8 characters.");
-      return;
-    }
-
-    setMessage("Password update validated (demo only).");
-
-    setPasswords({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
+    setProfile({
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      role: user?.role || "buyer",
     });
+
+    setMessage("");
   };
+
+  const formattedRole =
+    profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
 
   return (
     <div className="min-h-screen bg-gray-50 py-10">
@@ -110,7 +152,13 @@ function Profile() {
 
         {/* Message */}
         {message && (
-          <div className="mb-6 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <div
+            className={`mb-6 rounded-lg px-4 py-3 text-sm ${
+              messageType === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
             {message}
           </div>
         )}
@@ -119,15 +167,15 @@ function Profile() {
 
           {/* Profile Sidebar */}
           <div className="h-fit rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-
             <div className="flex flex-col items-center text-center">
 
               <div className="relative">
                 <img
                   src={
                     avatar ||
+                    user?.avatar ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      profile.name
+                      profile.name || "User"
                     )}&background=2563eb&color=fff&size=160`
                   }
                   alt="Profile"
@@ -136,6 +184,7 @@ function Profile() {
 
                 <label className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-blue-600 text-white shadow-md hover:bg-blue-700">
                   <Camera size={17} />
+
                   <input
                     type="file"
                     accept="image/*"
@@ -144,6 +193,10 @@ function Profile() {
                   />
                 </label>
               </div>
+
+              <p className="mt-2 text-xs text-gray-400">
+                Preview only — upload support coming later.
+              </p>
 
               <h2 className="mt-4 text-xl font-bold text-gray-900">
                 {profile.name}
@@ -154,7 +207,7 @@ function Profile() {
               </p>
 
               <span className="mt-4 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-                {profile.role}
+                {formattedRole}
               </span>
             </div>
 
@@ -168,7 +221,7 @@ function Profile() {
 
               <div className="flex items-center gap-3 text-gray-600">
                 <User size={18} className="text-blue-600" />
-                <span>{profile.role} Account</span>
+                <span>{formattedRole} Account</span>
               </div>
             </div>
           </div>
@@ -192,8 +245,16 @@ function Profile() {
 
                 <button
                   type="button"
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={loading}
+                  onClick={() => {
+                    if (isEditing) {
+                      handleCancel();
+                    } else {
+                      setIsEditing(true);
+                      setMessage("");
+                    }
+                  }}
+                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                 >
                   <Pencil size={15} />
                   {isEditing ? "Cancel" : "Edit"}
@@ -220,7 +281,7 @@ function Profile() {
                         name="name"
                         value={profile.name}
                         onChange={handleChange}
-                        disabled={!isEditing}
+                        disabled={!isEditing || loading}
                         required
                         className="w-full rounded-lg border border-gray-200 py-3 pl-10 pr-3 outline-none focus:border-blue-500 disabled:bg-gray-50"
                       />
@@ -241,12 +302,9 @@ function Profile() {
 
                       <input
                         type="email"
-                        name="email"
                         value={profile.email}
-                        onChange={handleChange}
-                        disabled={!isEditing}
-                        required
-                        className="w-full rounded-lg border border-gray-200 py-3 pl-10 pr-3 outline-none focus:border-blue-500 disabled:bg-gray-50"
+                        disabled
+                        className="w-full rounded-lg border border-gray-200 bg-gray-50 py-3 pl-10 pr-3 text-gray-500 outline-none"
                       />
                     </div>
                   </div>
@@ -268,8 +326,7 @@ function Profile() {
                         name="phone"
                         value={profile.phone}
                         onChange={handleChange}
-                        disabled={!isEditing}
-                        required
+                        disabled={!isEditing || loading}
                         className="w-full rounded-lg border border-gray-200 py-3 pl-10 pr-3 outline-none focus:border-blue-500 disabled:bg-gray-50"
                       />
                     </div>
@@ -283,23 +340,26 @@ function Profile() {
 
                     <input
                       type="text"
-                      name="location"
-                      value={profile.location}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-gray-50"
+                      value="Not available yet"
+                      disabled
+                      className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-gray-400 outline-none"
                     />
-                  </div>
 
+                    <p className="mt-1 text-xs text-gray-400">
+                      Location updates will be available in a future update.
+                    </p>
+                  </div>
                 </div>
 
+                {/* Save Button */}
                 {isEditing && (
                   <button
                     type="submit"
-                    className="mt-6 flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700"
+                    disabled={loading}
+                    className="mt-6 flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={18} />
-                    Save Changes
+                    {loading ? "Saving..." : "Save Changes"}
                   </button>
                 )}
               </form>
@@ -308,65 +368,32 @@ function Profile() {
             {/* Change Password */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <h2 className="text-xl font-bold text-gray-900">
                   Change Password
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Update your password to keep your account secure.
+                  Password management for your account.
                 </p>
               </div>
 
-              <form onSubmit={handlePasswordUpdate}>
-                <div className="space-y-5">
+              <div className="rounded-lg bg-gray-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Lock size={20} className="mt-0.5 text-gray-500" />
 
-                  {[
-                    {
-                      name: "currentPassword",
-                      label: "Current Password",
-                    },
-                    {
-                      name: "newPassword",
-                      label: "New Password",
-                    },
-                    {
-                      name: "confirmPassword",
-                      label: "Confirm New Password",
-                    },
-                  ].map((field) => (
-                    <div key={field.name}>
-                      <label className="mb-2 block text-sm font-medium text-gray-700">
-                        {field.label}
-                      </label>
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      Password update is not available yet.
+                    </p>
 
-                      <div className="relative">
-                        <Lock
-                          size={18}
-                          className="absolute left-3 top-3 text-gray-400"
-                        />
-
-                        <input
-                          type="password"
-                          name={field.name}
-                          value={passwords[field.name]}
-                          onChange={handlePasswordChange}
-                          required
-                          className="w-full rounded-lg border border-gray-200 py-3 pl-10 pr-3 outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  ))}
-
+                    <p className="mt-1 text-sm text-gray-500">
+                      This feature will be enabled after the backend
+                      password update API is implemented.
+                    </p>
+                  </div>
                 </div>
-
-                <button
-                  type="submit"
-                  className="mt-6 rounded-lg bg-gray-900 px-6 py-3 font-medium text-white hover:bg-gray-800"
-                >
-                  Update Password
-                </button>
-              </form>
+              </div>
             </div>
 
           </div>

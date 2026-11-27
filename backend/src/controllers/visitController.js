@@ -244,14 +244,7 @@ export const updateVisitStatus = async (req, res) => {
     visit.status = status;
     await visit.save();
 
-    await sendVisitNotification({
-      req,
-      recipient: visit.agent,
-      type: "visit_cancelled",
-      title: "Visit Cancelled",
-      message: `${req.user.name} cancelled a property visit.`,
-      visitId: visit._id,
-    });
+    
 
     const updatedVisit = await Visit.findById(visit._id)
       .populate("property", "title price images location")

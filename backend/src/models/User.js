@@ -47,6 +47,12 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+
+    // Soft deletion timestamp
+    deletedAt: {
+      type: Date,
+      default: null
     }
   },
   {

@@ -1,6 +1,25 @@
 
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { createConversation } from "../services/api/conversationApi";
+
+import {
+  fetchPropertyById,
+  clearSelectedProperty,
+} from "../app/slices/propertySlice";
+
+import {
+  createBookmark,
+  deleteBookmark,
+  fetchBookmarks,
+} from "../app/slices/bookmarkSlice";
+
+import { createVisit } from "../services/api/visitApi";
+
+import PropertyGallery from "../components/property/PropertyGallery";
+import ReviewSection from "../components/property/ReviewSection";
+
 import {
   MapPin,
   BedDouble,
@@ -13,7 +32,6 @@ import {
   Mail,
   MessageCircle,
   ChevronRight,
-  ChevronLeft,
   Home,
   Car,
   Trees,
@@ -21,122 +39,11 @@ import {
   Dumbbell,
   Waves,
   Building2,
+  CalendarDays,
+  Eye,
 } from "lucide-react";
 
-// Sample property data
-const properties = [
-  {
-    id: "1",
-    title: "Modern Family Villa",
-    location: "New Town, Kolkata, West Bengal",
-    price: "₹85 Lac",
-    purpose: "For Sale",
-    type: "Villa",
-    bedrooms: 4,
-    bathrooms: 3,
-    area: "2,400 sq.ft.",
-    status: "Ready to Move",
-    description:
-      "Experience comfortable family living in this beautiful modern villa. Designed with spacious interiors, natural lighting and contemporary architecture, this property offers an ideal combination of comfort and convenience. Enjoy a peaceful residential environment with easy access to shopping, schools and essential facilities.",
-    images: [
-      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1400&q=90",
-    ],
-    amenities: [
-      "Swimming Pool",
-      "Covered Parking",
-      "Garden",
-      "24/7 Security",
-      "Gym",
-      "Power Backup",
-      "Modern Kitchen",
-      "Balcony",
-    ],
-    agent: {
-      name: "Rahul Sharma",
-      role: "Property Consultant",
-      phone: "+91 98765 43210",
-      email: "rahul@example.com",
-      image:
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=85",
-    },
-  },
-  {
-    id: "2",
-    title: "Luxury Apartment",
-    location: "Salt Lake, Kolkata, West Bengal",
-    price: "₹35,000/month",
-    purpose: "For Rent",
-    type: "Apartment",
-    bedrooms: 3,
-    bathrooms: 2,
-    area: "1,650 sq.ft.",
-    status: "Ready to Move",
-    description:
-      "A spacious apartment with a contemporary interior, comfortable bedrooms and convenient access to everyday facilities. An excellent option for families looking for a well-connected residential location.",
-    images: [
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1400&q=90",
-    ],
-    amenities: [
-      "Lift",
-      "Covered Parking",
-      "Security",
-      "Power Backup",
-      "Balcony",
-      "Modern Kitchen",
-    ],
-    agent: {
-      name: "Priya Das",
-      role: "Rental Property Agent",
-      phone: "+91 98765 12345",
-      email: "priya@example.com",
-      image:
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=85",
-    },
-  },
-  {
-    id: "3",
-    title: "Premium Modern House",
-    location: "Rajarhat, Kolkata, West Bengal",
-    price: "₹1.2 Cr",
-    purpose: "For Sale",
-    type: "House",
-    bedrooms: 4,
-    bathrooms: 4,
-    area: "2,800 sq.ft.",
-    status: "Ready to Move",
-    description:
-      "Discover a stylish independent house with generous living spaces, elegant interiors and modern facilities. The property is designed for families who value privacy, comfort and convenient city access.",
-    images: [
-      "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=90",
-    ],
-    amenities: [
-      "Garden",
-      "Parking",
-      "Security",
-      "Power Backup",
-      "Balcony",
-      "Modular Kitchen",
-    ],
-    agent: {
-      name: "Amit Roy",
-      role: "Senior Property Consultant",
-      phone: "+91 98765 67890",
-      email: "amit@example.com",
-      image:
-        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=85",
-    },
-  },
-];
-
+// Amenity icons
 const amenityIcons = {
   "Swimming Pool": Waves,
   "Covered Parking": Car,
@@ -147,16 +54,252 @@ const amenityIcons = {
   "Power Backup": CheckCircle,
 };
 
+// Format property price
+const formatPrice = (price, listingType) => {
+  const formattedPrice = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(price || 0);
+
+  return listingType === "rent"
+    ? `${formattedPrice}/month`
+    : formattedPrice;
+};
+
+// Format text
+const formatText = (value = "") => {
+  return value
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export default function PropertyDetails() {
   const { id } = useParams();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-  const property = properties.find((item) => item.id === id);
+  // Property Redux state
+  const {
+    selectedProperty: property,
+    detailsLoading,
+    detailsError,
+  } = useSelector((state) => state.properties);
 
-  const [activeImage, setActiveImage] = useState(0);
-  const [isSaved, setIsSaved] = useState(false);
+  // Bookmark Redux state
+  const { bookmarks } = useSelector(
+    (state) => state.bookmarks
+  );
+
+  // Authentication Redux state
+  const { isAuthenticated, user } = useSelector(
+    (state) => state.auth
+  );
+
+  // Local state
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [bookmarkProcessing, setBookmarkProcessing] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
 
-  if (!property) {
+  // Schedule visit state
+  const [visitData, setVisitData] = useState({
+    visitDate: "",
+    visitTime: "",
+    message: "",
+  });
+
+  const [visitLoading, setVisitLoading] = useState(false);
+  const [visitSuccess, setVisitSuccess] = useState(false);
+  const [visitError, setVisitError] = useState("");
+
+  // Fetch property details
+  useEffect(() => {
+    dispatch(fetchPropertyById(id));
+
+    return () => {
+      dispatch(clearSelectedProperty());
+    };
+  }, [dispatch, id]);
+
+  // Fetch bookmarks when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchBookmarks());
+    }
+  }, [dispatch, isAuthenticated]);
+
+  // Reset forms when property changes
+  useEffect(() => {
+    setFormSubmitted(false);
+    setVisitSuccess(false);
+    setVisitError("");
+
+    setVisitData({
+      visitDate: "",
+      visitTime: "",
+      message: "",
+    });
+  }, [id]);
+
+  // Check whether current property is bookmarked
+  const isSaved = bookmarks.some((bookmark) => {
+    const bookmarkedProperty =
+      typeof bookmark.property === "object"
+        ? bookmark.property?._id
+        : bookmark.property;
+
+    return String(bookmarkedProperty || "") === String(id);
+  });
+
+  // Toggle bookmark
+  const handleBookmark = async () => {
+    if (!isAuthenticated) {
+      alert("Please login to save properties.");
+      return;
+    }
+
+    if (bookmarkProcessing) return;
+
+    setBookmarkProcessing(true);
+
+    try {
+      if (isSaved) {
+        await dispatch(deleteBookmark(id)).unwrap();
+      } else {
+        await dispatch(createBookmark(id)).unwrap();
+      }
+    } catch (error) {
+      console.error("Bookmark Error:", error);
+
+      alert(
+        typeof error === "string"
+          ? error
+          : "Unable to update bookmark. Please try again."
+      );
+    } finally {
+      setBookmarkProcessing(false);
+    }
+  };
+
+  // Schedule property visit
+  const handleScheduleVisit = async (e) => {
+    e.preventDefault();
+
+    if (!isAuthenticated) {
+      setVisitError("Please login to schedule a property visit.");
+      return;
+    }
+
+    if (user?.role !== "buyer") {
+      setVisitError("Only buyer accounts can schedule property visits.");
+      return;
+    }
+
+    if (visitLoading) return;
+
+    setVisitLoading(true);
+    setVisitError("");
+    setVisitSuccess(false);
+
+    try {
+      await createVisit({
+        propertyId: id,
+        visitDate: visitData.visitDate,
+        visitTime: visitData.visitTime,
+        message: visitData.message.trim(),
+      });
+
+      setVisitSuccess(true);
+
+      setVisitData({
+        visitDate: "",
+        visitTime: "",
+        message: "",
+      });
+    } catch (error) {
+      console.error("Schedule Visit Error:", error);
+
+      setVisitError(
+        error.response?.data?.message ||
+          "Unable to schedule visit. Please try again."
+      );
+    } finally {
+      setVisitLoading(false);
+    }
+  };
+
+  // MESSAGE PROPERTY AGENT
+const handleMessageAgent = async () => {
+  if (!isAuthenticated) {
+    navigate("/login");
+    return;
+  }
+
+  if (user?.role !== "buyer") {
+    alert("Only buyer accounts can message property agents.");
+    return;
+  }
+
+  if (!owner._id) {
+    alert("Agent information is unavailable.");
+    return;
+  }
+
+  if (conversationLoading) return;
+
+  try {
+    setConversationLoading(true);
+
+    const response = await createConversation({
+      participantId: owner._id,
+      propertyId: property._id,
+    });
+
+    // Support the common conversation response formats.
+    const conversation =
+      response?.conversation ||
+      response?.data?.conversation ||
+      response?.data ||
+      response;
+
+    const conversationId =
+      conversation?._id || conversation?.conversation?._id;
+
+    if (!conversationId) {
+      throw new Error("Conversation ID was not returned by the server.");
+    }
+
+    navigate(`/chat?conversationId=${conversationId}`);
+  } catch (error) {
+    console.error("Create Conversation Error:", error);
+
+    alert(
+      error.response?.data?.message ||
+        error.message ||
+        "Unable to start conversation. Please try again."
+    );
+  } finally {
+    setConversationLoading(false);
+  }
+};
+
+  // Loading state
+  if (detailsLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+
+          <p className="text-slate-600 mt-4 font-medium">
+            Loading property details...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error or property not found
+  if (detailsError || !property) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-5 text-center">
         <Home size={48} className="text-slate-300" />
@@ -166,7 +309,8 @@ export default function PropertyDetails() {
         </h1>
 
         <p className="text-slate-500 mt-2">
-          This property may not exist or may have been removed.
+          {detailsError ||
+            "This property may not exist or may have been removed."}
         </p>
 
         <Link
@@ -179,28 +323,67 @@ export default function PropertyDetails() {
     );
   }
 
-  const nextImage = () => {
-    setActiveImage((previous) =>
-      (previous + 1) % property.images.length
-    );
-  };
+  // Backend property data
+  const location = property.location || {};
+  const owner = property.owner || {};
 
-  const previousImage = () => {
-    setActiveImage((previous) =>
-      (previous - 1 + property.images.length) %
-      property.images.length
-    );
-  };
+  const fullLocation = [
+    location.address,
+    location.city,
+    location.state,
+    location.country,
+    location.pincode,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
+  const propertyType = formatText(property.propertyType || "");
+  const listingType = property.listingType || "sale";
+
+  const purpose =
+    listingType === "rent" ? "For Rent" : "For Sale";
+
+  const price = formatPrice(property.price, listingType);
+
+  const area = `${Number(property.area || 0).toLocaleString("en-IN")} ${
+    property.areaUnit || "sqft"
+  }`;
+
+  // Agent details
+  const agentName = owner.name || "Property Agent";
+  const agentEmail = owner.email || "";
+  const agentPhone = owner.phone || "";
+  const agentImage = owner.avatar || "";
+
+  // Inquiry form
   const handleInquiry = (e) => {
     e.preventDefault();
+
     setFormSubmitted(true);
     e.currentTarget.reset();
   };
 
+  // Google Maps URL
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    property.location
+    fullLocation || location.city || "India"
   )}`;
+
+  // Tomorrow as minimum visit date
+  const minimumVisitDate = (() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  })();
+
+  const canScheduleVisit =
+    isAuthenticated &&
+    user?.role === "buyer" &&
+    property.status === "available";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -228,112 +411,73 @@ export default function PropertyDetails() {
 
       {/* IMAGE GALLERY */}
       <section className="max-w-7xl mx-auto px-5">
+        <div className="relative">
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 h-auto lg:h-[500px]">
+          <PropertyGallery
+            images={property.images || []}
+            title={property.title}
+          />
 
-          {/* MAIN IMAGE */}
-          <div className="lg:col-span-3 relative h-[300px] sm:h-[420px] lg:h-full rounded-2xl overflow-hidden group">
+          {/* PROPERTY PURPOSE */}
+          <span className="absolute top-5 left-5 z-10 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+            {purpose}
+          </span>
 
-            <img
-              src={property.images[activeImage]}
-              alt={property.title}
-              className="w-full h-full object-cover"
-            />
+          {/* PROPERTY ACTIONS */}
+          <div className="absolute top-5 right-5 z-10 flex gap-2">
 
-            <span className="absolute top-5 left-5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
-              {property.purpose}
-            </span>
-
-            <div className="absolute top-5 right-5 flex gap-2">
-
-              <button
-                onClick={() => setIsSaved(!isSaved)}
-                aria-label="Save property"
-                className="bg-white rounded-full p-3 shadow hover:scale-105 transition"
-              >
-                <Heart
-                  size={20}
-                  className={
-                    isSaved
-                      ? "fill-red-500 text-red-500"
-                      : "text-slate-700"
-                  }
-                />
-              </button>
-
-              <button
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: property.title,
-                      url: window.location.href,
-                    }).catch(() => {});
-                  } else if (navigator.clipboard) {
-                    navigator.clipboard.writeText(
-                      window.location.href
-                    );
-                  }
-                }}
-                aria-label="Share property"
-                className="bg-white rounded-full p-3 shadow hover:scale-105 transition"
-              >
-                <Share2 size={20} />
-              </button>
-
-            </div>
-
-            {/* GALLERY CONTROLS */}
+            {/* BOOKMARK BUTTON */}
             <button
-              onClick={previousImage}
-              aria-label="Previous image"
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full shadow opacity-100 lg:opacity-0 group-hover:opacity-100 transition"
+              onClick={handleBookmark}
+              disabled={!isAuthenticated || bookmarkProcessing}
+              aria-label={
+                isSaved ? "Remove bookmark" : "Save property"
+              }
+              title={
+                !isAuthenticated
+                  ? "Login to save property"
+                  : isSaved
+                    ? "Remove bookmark"
+                    : "Save property"
+              }
+              className="bg-white rounded-full p-3 shadow hover:scale-105 transition disabled:opacity-50"
             >
-              <ChevronLeft size={22} />
+              <Heart
+                size={20}
+                className={
+                  isSaved
+                    ? "fill-red-500 text-red-500"
+                    : "text-slate-700"
+                }
+              />
             </button>
 
+            {/* SHARE BUTTON */}
             <button
-              onClick={nextImage}
-              aria-label="Next image"
-              className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full shadow opacity-100 lg:opacity-0 group-hover:opacity-100 transition"
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({
+                    title: property.title,
+                    url: window.location.href,
+                  }).catch(() => {});
+                } else if (navigator.clipboard) {
+                  navigator.clipboard.writeText(
+                    window.location.href
+                  );
+                }
+              }}
+              aria-label="Share property"
+              className="bg-white rounded-full p-3 shadow hover:scale-105 transition"
             >
-              <ChevronRight size={22} />
+              <Share2 size={20} />
             </button>
 
-            <span className="absolute bottom-5 right-5 bg-black/60 text-white text-sm px-4 py-2 rounded-full">
-              {activeImage + 1} / {property.images.length}
-            </span>
-
           </div>
-
-          {/* THUMBNAILS */}
-          <div className="grid grid-cols-3 lg:grid-cols-1 lg:grid-rows-4 gap-3">
-
-            {property.images.map((image, index) => (
-              <button
-                key={image}
-                onClick={() => setActiveImage(index)}
-                className={`relative h-24 sm:h-32 lg:h-auto rounded-xl overflow-hidden ${
-                  activeImage === index
-                    ? "ring-4 ring-blue-600"
-                    : ""
-                }`}
-              >
-                <img
-                  src={image}
-                  alt={`${property.title} view ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </button>
-            ))}
-
-          </div>
-
         </div>
       </section>
 
       {/* PROPERTY CONTENT */}
       <section className="max-w-7xl mx-auto px-5 py-10">
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
           {/* LEFT CONTENT */}
@@ -341,12 +485,11 @@ export default function PropertyDetails() {
 
             {/* PROPERTY OVERVIEW */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8">
-
               <div className="flex flex-wrap justify-between gap-5">
 
                 <div>
                   <span className="text-sm text-blue-600 font-semibold">
-                    {property.type}
+                    {propertyType}
                   </span>
 
                   <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2">
@@ -355,7 +498,7 @@ export default function PropertyDetails() {
 
                   <p className="flex items-center gap-2 text-slate-500 mt-3">
                     <MapPin size={18} />
-                    {property.location}
+                    {fullLocation || "Location not available"}
                   </p>
                 </div>
 
@@ -365,111 +508,122 @@ export default function PropertyDetails() {
                   </p>
 
                   <h2 className="text-2xl sm:text-3xl font-bold text-blue-600 mt-2">
-                    {property.price}
+                    {price}
                   </h2>
                 </div>
-
               </div>
 
               {/* PROPERTY FEATURES */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-slate-100 mt-8 pt-7">
+              
+<div className="grid grid-cols-2 sm:grid-cols-5 gap-4 border-t border-slate-100 mt-8 pt-7">
 
-                <div className="flex flex-col items-center gap-2">
-                  <BedDouble size={24} className="text-blue-600" />
-                  <strong>{property.bedrooms} Bedrooms</strong>
-                </div>
+  <div className="flex flex-col items-center gap-2">
+    <BedDouble size={24} className="text-blue-600" />
+    <strong>{property.bedrooms || 0} Bedrooms</strong>
+  </div>
 
-                <div className="flex flex-col items-center gap-2">
-                  <Bath size={24} className="text-blue-600" />
-                  <strong>{property.bathrooms} Bathrooms</strong>
-                </div>
+  <div className="flex flex-col items-center gap-2">
+    <Bath size={24} className="text-blue-600" />
+    <strong>{property.bathrooms || 0} Bathrooms</strong>
+  </div>
 
-                <div className="flex flex-col items-center gap-2">
-                  <Maximize size={24} className="text-blue-600" />
-                  <strong>{property.area}</strong>
-                </div>
+  <div className="flex flex-col items-center gap-2">
+    <Maximize size={24} className="text-blue-600" />
+    <strong>{area}</strong>
+  </div>
 
-                <div className="flex flex-col items-center gap-2">
-                  <Building2 size={24} className="text-blue-600" />
-                  <strong>{property.type}</strong>
-                </div>
+  <div className="flex flex-col items-center gap-2">
+    <Building2 size={24} className="text-blue-600" />
+    <strong>{propertyType}</strong>
+  </div>
 
-              </div>
+  <div className="flex flex-col items-center gap-2">
+    <Eye size={24} className="text-blue-600" />
+    <strong>
+      {Number(property.views || 0).toLocaleString("en-IN")} Views
+    </strong>
+  </div>
 
+</div>
             </div>
 
             {/* DESCRIPTION */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8">
-
               <h2 className="text-xl font-bold text-slate-900">
                 Property Description
               </h2>
 
               <p className="text-slate-600 leading-8 mt-5">
-                {property.description}
+                {property.description || "No description available."}
               </p>
 
               <div className="flex flex-wrap gap-3 mt-6">
 
                 <span className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded-lg font-medium">
                   <CheckCircle size={15} className="inline mr-2" />
-                  {property.status}
+                  {formatText(property.status || "available")}
                 </span>
 
                 <span className="bg-blue-50 text-blue-700 text-sm px-4 py-2 rounded-lg font-medium">
                   <CheckCircle size={15} className="inline mr-2" />
-                  {property.purpose}
+                  {purpose}
                 </span>
 
-              </div>
+                {property.isVerified && (
+                  <span className="bg-green-50 text-green-700 text-sm px-4 py-2 rounded-lg font-medium">
+                    <ShieldCheck size={15} className="inline mr-2" />
+                    Verified Property
+                  </span>
+                )}
 
+              </div>
             </div>
 
             {/* AMENITIES */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8">
-
               <h2 className="text-xl font-bold text-slate-900">
                 Amenities & Features
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-7">
+              {property.amenities?.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-7">
+                  {property.amenities.map((amenity) => {
+                    const Icon =
+                      amenityIcons[amenity] || CheckCircle;
 
-                {property.amenities.map((amenity) => {
-                  const Icon =
-                    amenityIcons[amenity] || CheckCircle;
+                    return (
+                      <div
+                        key={amenity}
+                        className="flex items-center gap-3 text-slate-600"
+                      >
+                        <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                          <Icon size={20} />
+                        </div>
 
-                  return (
-                    <div
-                      key={amenity}
-                      className="flex items-center gap-3 text-slate-600"
-                    >
-                      <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                        <Icon size={20} />
+                        <span>{amenity}</span>
                       </div>
-
-                      <span>{amenity}</span>
-                    </div>
-                  );
-                })}
-
-              </div>
-
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-slate-500 mt-5">
+                  No amenities listed for this property.
+                </p>
+              )}
             </div>
 
             {/* LOCATION */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8">
-
               <h2 className="text-xl font-bold text-slate-900">
                 Property Location
               </h2>
 
               <p className="flex items-center gap-2 text-slate-500 mt-3">
                 <MapPin size={18} className="text-blue-600" />
-                {property.location}
+                {fullLocation || "Location not available"}
               </p>
 
               <div className="mt-6 rounded-xl bg-slate-100 border border-slate-200 p-8 text-center">
-
                 <MapPin
                   size={36}
                   className="text-blue-600 mx-auto"
@@ -491,10 +645,11 @@ export default function PropertyDetails() {
                 >
                   Open Google Maps
                 </a>
-
               </div>
-
             </div>
+
+            {/* PROPERTY REVIEWS */}
+            <ReviewSection propertyId={property._id} />
 
           </div>
 
@@ -503,61 +658,265 @@ export default function PropertyDetails() {
 
             {/* AGENT CARD */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6">
-
               <h2 className="text-xl font-bold text-slate-900">
                 Contact Property Agent
               </h2>
 
               <div className="flex items-center gap-4 mt-6">
-
-                <img
-                  src={property.agent.image}
-                  alt={property.agent.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
+                {agentImage ? (
+                  <img
+                    src={agentImage}
+                    alt={agentName}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold">
+                    {agentName.charAt(0).toUpperCase()}
+                  </div>
+                )}
 
                 <div>
                   <h3 className="font-bold text-slate-900">
-                    {property.agent.name}
+                    {agentName}
                   </h3>
 
                   <p className="text-sm text-slate-500 mt-1">
-                    {property.agent.role}
+                    Property Agent
                   </p>
 
                   <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                     <CheckCircle size={13} />
-                    Sample agent profile
+                    Property Owner
                   </p>
                 </div>
-
               </div>
 
-              <div className="space-y-3 mt-6">
+             <div className="space-y-3 mt-6">
 
-                <a
-                  href={`tel:${property.agent.phone.replace(/\s/g, "")}`}
-                  className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-lg py-3 font-semibold text-slate-700 hover:bg-slate-50"
+  {/* MESSAGE AGENT */}
+  <button
+    type="button"
+    onClick={handleMessageAgent}
+    disabled={
+      conversationLoading ||
+      !owner._id ||
+      (isAuthenticated && user?.role !== "buyer")
+    }
+    className="flex items-center justify-center gap-2 w-full bg-[#006A4E] hover:bg-[#00543E] disabled:bg-gray-400 text-white rounded-lg py-3 font-semibold transition"
+  >
+    {conversationLoading ? (
+      <>
+        <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        Starting Conversation...
+      </>
+    ) : (
+      <>
+        <MessageCircle size={18} />
+        Message Agent
+      </>
+    )}
+  </button>
+
+  {/* CALL AGENT */}
+  {agentPhone && (
+    <a
+      href={`tel:${agentPhone.replace(/\s/g, "")}`}
+      className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-lg py-3 font-semibold text-slate-700 hover:bg-slate-50"
+    >
+      <Phone size={18} />
+      Call Agent
+    </a>
+  )}
+
+  {/* EMAIL AGENT */}
+  {agentEmail && (
+    <a
+      href={`mailto:${agentEmail}`}
+      className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-lg py-3 font-semibold text-slate-700 hover:bg-slate-50"
+    >
+      <Mail size={18} />
+      Email Agent
+    </a>
+  )}
+
+</div>
+            </div>
+
+            {/* SCHEDULE PROPERTY VISIT */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6">
+              <h2 className="text-xl font-bold text-slate-900">
+                Schedule a Visit
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-2">
+                Book a visit to explore this property in person.
+              </p>
+
+              {!isAuthenticated ? (
+                <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4">
+                  <p className="text-sm text-blue-700">
+                    Please login to schedule a property visit.
+                  </p>
+
+                  <Link
+                    to="/login"
+                    className="inline-block mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+                  >
+                    Login
+                  </Link>
+                </div>
+              ) : user?.role !== "buyer" ? (
+                <div className="mt-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-sm text-amber-700">
+                    Only buyer accounts can schedule property visits.
+                  </p>
+                </div>
+              ) : property.status !== "available" ? (
+                <div className="mt-5 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <p className="text-sm text-slate-600">
+                    Visit scheduling is unavailable because this property is not currently available.
+                  </p>
+                </div>
+              ) : visitSuccess ? (
+                <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+                  <CheckCircle
+                    size={35}
+                    className="text-green-600 mx-auto"
+                  />
+
+                  <h3 className="font-bold text-green-800 mt-3">
+                    Visit Request Submitted!
+                  </h3>
+
+                  <p className="text-sm text-green-700 mt-2">
+                    Your visit request has been sent to the property agent.
+                    You can check its status from My Visits.
+                  </p>
+
+                  <Link
+                    to="/my-visits"
+                    className="inline-block mt-4 text-green-800 font-semibold underline"
+                  >
+                    View My Visits
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisitSuccess(false)}
+                    className="block mx-auto text-sm text-green-800 font-semibold mt-4"
+                  >
+                    Schedule another visit
+                  </button>
+                </div>
+              ) : (
+                <form
+                  onSubmit={handleScheduleVisit}
+                  className="space-y-4 mt-6"
                 >
-                  <Phone size={18} />
-                  Call Agent
-                </a>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Preferred Date
+                    </label>
 
-                <a
-                  href={`mailto:${property.agent.email}`}
-                  className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-lg py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <Mail size={18} />
-                  Email Agent
-                </a>
+                    <input
+                      type="date"
+                      required
+                      min={minimumVisitDate}
+                      value={visitData.visitDate}
+                      onChange={(e) =>
+                        setVisitData((prev) => ({
+                          ...prev,
+                          visitDate: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-slate-200 rounded-lg p-3 outline-none focus:border-blue-500"
+                    />
+                  </div>
 
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Preferred Time
+                    </label>
 
+                    <select
+                      required
+                      value={visitData.visitTime}
+                      onChange={(e) =>
+                        setVisitData((prev) => ({
+                          ...prev,
+                          visitTime: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-slate-200 rounded-lg p-3 outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select a time</option>
+                      <option value="10:00 AM">10:00 AM</option>
+                      <option value="10:30 AM">10:30 AM</option>
+                      <option value="11:00 AM">11:00 AM</option>
+                      <option value="11:30 AM">11:30 AM</option>
+                      <option value="12:00 PM">12:00 PM</option>
+                      <option value="12:30 PM">12:30 PM</option>
+                      <option value="01:00 PM">01:00 PM</option>
+                      <option value="01:30 PM">01:30 PM</option>
+                      <option value="02:00 PM">02:00 PM</option>
+                      <option value="02:30 PM">02:30 PM</option>
+                      <option value="03:00 PM">03:00 PM</option>
+                      <option value="03:30 PM">03:30 PM</option>
+                      <option value="04:00 PM">04:00 PM</option>
+                      <option value="04:30 PM">04:30 PM</option>
+                      <option value="05:00 PM">05:00 PM</option>
+                      <option value="05:30 PM">05:30 PM</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Message to Agent (Optional)
+                    </label>
+
+                    <textarea
+                      rows="3"
+                      maxLength={500}
+                      value={visitData.message}
+                      onChange={(e) =>
+                        setVisitData((prev) => ({
+                          ...prev,
+                          message: e.target.value,
+                        }))
+                      }
+                      placeholder="Let the agent know anything about your visit..."
+                      className="w-full border border-slate-200 rounded-lg p-3 outline-none focus:border-blue-500 resize-none"
+                    />
+                  </div>
+
+                  {visitError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm text-red-600">
+                        {visitError}
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={visitLoading || !canScheduleVisit}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg py-3 flex items-center justify-center gap-2 transition"
+                  >
+                    {visitLoading ? (
+                      "Submitting Request..."
+                    ) : (
+                      <>
+                        <CalendarDays size={18} />
+                        Schedule Property Visit
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
             </div>
 
             {/* INQUIRY FORM */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6">
-
               <h2 className="text-xl font-bold text-slate-900">
                 Send an Inquiry
               </h2>
@@ -568,7 +927,6 @@ export default function PropertyDetails() {
 
               {formSubmitted ? (
                 <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-5 text-center">
-
                   <CheckCircle
                     size={35}
                     className="text-green-600 mx-auto"
@@ -579,8 +937,8 @@ export default function PropertyDetails() {
                   </h3>
 
                   <p className="text-sm text-green-700 mt-2">
-                    This is a UI demonstration. We'll connect
-                    the inquiry form to the backend later.
+                    This is currently a UI demonstration.
+                    We will connect the inquiry form to the backend later.
                   </p>
 
                   <button
@@ -589,11 +947,12 @@ export default function PropertyDetails() {
                   >
                     Send another inquiry
                   </button>
-
                 </div>
               ) : (
-                <form onSubmit={handleInquiry} className="space-y-4 mt-6">
-
+                <form
+                  onSubmit={handleInquiry}
+                  className="space-y-4 mt-6"
+                >
                   <input
                     type="text"
                     name="name"
@@ -633,17 +992,13 @@ export default function PropertyDetails() {
                     <MessageCircle size={18} />
                     Send Inquiry
                   </button>
-
                 </form>
               )}
-
             </div>
 
           </aside>
-
         </div>
       </section>
-
     </div>
   );
 }

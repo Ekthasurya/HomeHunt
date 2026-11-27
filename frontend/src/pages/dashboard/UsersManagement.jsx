@@ -1,5 +1,6 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+
 import {
   Search,
   Users,
@@ -9,139 +10,246 @@ import {
   Eye,
   Ban,
   CheckCircle,
+  Trash2,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
-const initialUsers = [
-  {
-    id: 1,
-    name: "Rahul Sharma",
-    email: "rahul@gmail.com",
-    phone: "9876543210",
-    role: "Buyer",
-    status: "Active",
-    joined: "12 Nov 2026",
-  },
-  {
-    id: 2,
-    name: "Priya Das",
-    email: "priya@gmail.com",
-    phone: "9876543211",
-    role: "Agent",
-    status: "Active",
-    joined: "10 Nov 2026",
-  },
-  {
-    id: 3,
-    name: "Amit Roy",
-    email: "amit@gmail.com",
-    phone: "9876543212",
-    role: "Buyer",
-    status: "Inactive",
-    joined: "08 Nov 2026",
-  },
-  {
-    id: 4,
-    name: "Sneha Gupta",
-    email: "sneha@gmail.com",
-    phone: "9876543213",
-    role: "Agent",
-    status: "Active",
-    joined: "05 Nov 2026",
-  },
-  {
-    id: 5,
-    name: "Admin User",
-    email: "admin@homehunt.com",
-    phone: "9876543214",
-    role: "Admin",
-    status: "Active",
-    joined: "01 Nov 2026",
-  },
-  {
-    id: 6,
-    name: "Arjun Singh",
-    email: "arjun@gmail.com",
-    phone: "9876543215",
-    role: "Buyer",
-    status: "Inactive",
-    joined: "28 Oct 2026",
-  },
-];
+import {
+  getAdminUsers,
+  updateAdminUserStatus,
+  deleteAdminUser,
+} from "../../services/api/adminUserApi";
+
+import { useSelector } from "react-redux";
 
 function UsersManagement() {
-  const [users, setUsers] = useState(initialUsers);
+  const { user: currentUser } = useSelector((state) => state.auth);
+
+  const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      const matchesSearch =
-        user.name.toLowerCase().includes(search.toLowerCase()) ||
-        user.email.toLowerCase().includes(search.toLowerCase());
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [error, setError] = useState("");
 
-      const matchesRole =
-        roleFilter === "All" || user.role === roleFilter;
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    pageSize: 10,
+  });
 
-      const matchesStatus =
-        statusFilter === "All" || user.status === statusFilter;
+  // FETCH USERS
+  const fetchUsers = async (page = 1) => {
+    try {
+      setLoading(true);
+      setError("");
 
-      return matchesSearch && matchesRole && matchesStatus;
-    });
-  }, [users, search, roleFilter, statusFilter]);
+      const params = {
+        page,
+        limit: 10,
+      };
 
+      if (search.trim()) {
+        params.search = search.trim();
+      }
+
+      if (roleFilter !== "All") {
+        params.role = roleFilter.toLowerCase();
+      }
+
+      if (statusFilter !== "All") {
+        params.status = statusFilter.toLowerCase();
+      }
+
+      const response = await getAdminUsers(params);
+
+      setUsers(response.users || []);
+
+      setPagination(
+        response.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalUsers: 0,
+          pageSize: 10,
+        }
+      );
+    } catch (err) {
+      console.error("FETCH USERS ERROR:", err);
+
+      setError(
+        err.response?.data?.message || "Failed to load users."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FETCH WHEN FILTERS CHANGE
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUsers(1);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [search, roleFilter, statusFilter]);
+
+  // UPDATE USER STATUS
+  const toggleStatus = async (user) => {
+    if (user._id === currentUser?._id) {
+      alert("You cannot change your own admin account status.");
+      return;
+    }
+
+    if (user.role === "admin") {
+      alert("Admin accounts cannot be modified.");
+      return;
+    }
+
+    const nextStatus = !user.isActive;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ${
+        nextStatus ? "activate" : "deactivate"
+      } ${user.name}?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setUpdatingId(user._id);
+      setError("");
+
+      await updateAdminUserStatus(user._id, nextStatus);
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item._id === user._id
+            ? { ...item, isActive: nextStatus }
+            : item
+        )
+      );
+
+      setSelectedUser((prev) =>
+        prev?._id === user._id
+          ? { ...prev, isActive: nextStatus }
+          : prev
+      );
+    } catch (err) {
+      console.error("UPDATE USER STATUS ERROR:", err);
+
+      alert(
+        err.response?.data?.message ||
+          "Failed to update user status."
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // SOFT DELETE USER
+  const handleDeleteUser = async (user) => {
+    if (user._id === currentUser?._id) {
+      alert("You cannot delete your own admin account.");
+      return;
+    }
+
+    if (user.role === "admin") {
+      alert("Admin accounts cannot be deleted.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${user.name}?\n\n` +
+      "This account will be deactivated and hidden from the user list.\n\n" +
+      "Their properties, reviews, visits and chat history will be preserved."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(user._id);
+      setError("");
+
+      await deleteAdminUser(user._id);
+
+      // Close modal if the deleted user was selected
+      setSelectedUser((prev) =>
+        prev?._id === user._id ? null : prev
+      );
+
+      // If this was the only user on the current page,
+      // move to the previous page.
+      const nextPage =
+        users.length === 1 && pagination.currentPage > 1
+          ? pagination.currentPage - 1
+          : pagination.currentPage;
+
+      await fetchUsers(nextPage);
+
+      alert("User account deleted successfully.");
+    } catch (err) {
+      console.error("DELETE USER ERROR:", err);
+
+      alert(
+        err.response?.data?.message ||
+          "Failed to delete user account."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // STATISTICS
   const stats = [
     {
       title: "Total Users",
-      value: users.length,
+      value: pagination.totalUsers,
       icon: Users,
       color: "bg-blue-50 text-blue-600",
     },
     {
       title: "Active Users",
-      value: users.filter((user) => user.status === "Active").length,
+      value: users.filter((user) => user.isActive).length,
       icon: UserCheck,
       color: "bg-green-50 text-green-600",
     },
     {
       title: "Inactive Users",
-      value: users.filter((user) => user.status === "Inactive").length,
+      value: users.filter((user) => !user.isActive).length,
       icon: UserX,
       color: "bg-red-50 text-red-600",
     },
     {
       title: "Agents",
-      value: users.filter((user) => user.role === "Agent").length,
+      value: users.filter((user) => user.role === "agent").length,
       icon: ShieldCheck,
       color: "bg-purple-50 text-purple-600",
     },
   ];
 
-  const toggleStatus = (id) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === id
-          ? {
-              ...user,
-              status: user.status === "Active" ? "Inactive" : "Active",
-            }
-          : user
-      )
-    );
+  const formatDate = (date) => {
+    if (!date) return "N/A";
 
-    setSelectedUser((prev) =>
-      prev?.id === id
-        ? {
-            ...prev,
-            status: prev.status === "Active" ? "Inactive" : "Active",
-          }
-        : prev
-    );
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
+
+  const getStatusLabel = (isActive) =>
+    isActive ? "Active" : "Inactive";
 
   return (
     <DashboardLayout role="admin">
@@ -149,12 +257,13 @@ function UsersManagement() {
         <h1 className="text-2xl font-bold text-gray-900">
           User Management
         </h1>
+
         <p className="mt-1 text-sm text-gray-500">
           Manage HomeHunt buyers, agents and administrators.
         </p>
       </div>
 
-      {/* Statistics */}
+      {/* STATISTICS */}
       <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -166,7 +275,10 @@ function UsersManagement() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">{stat.title}</p>
+                  <p className="text-sm text-gray-500">
+                    {stat.title}
+                  </p>
+
                   <h2 className="mt-2 text-2xl font-bold text-gray-900">
                     {stat.value}
                   </h2>
@@ -181,7 +293,7 @@ function UsersManagement() {
         })}
       </div>
 
-      {/* Filters */}
+      {/* FILTERS */}
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="relative">
@@ -205,9 +317,9 @@ function UsersManagement() {
             className="rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
           >
             <option value="All">All Roles</option>
-            <option value="Buyer">Buyer</option>
-            <option value="Agent">Agent</option>
-            <option value="Admin">Admin</option>
+            <option value="buyer">Buyer</option>
+            <option value="agent">Agent</option>
+            <option value="admin">Admin</option>
           </select>
 
           <select
@@ -216,22 +328,29 @@ function UsersManagement() {
             className="rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
           >
             <option value="All">All Statuses</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
           </select>
         </div>
       </div>
 
-      {/* Users Table */}
+      {/* ERROR */}
+      {error && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* USERS TABLE */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="font-semibold text-gray-900">
-            Registered Users ({filteredUsers.length})
+            Registered Users ({pagination.totalUsers})
           </h2>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-5 py-4 font-medium">User</th>
@@ -239,31 +358,46 @@ function UsersManagement() {
                 <th className="px-5 py-4 font-medium">Role</th>
                 <th className="px-5 py-4 font-medium">Joined</th>
                 <th className="px-5 py-4 font-medium">Status</th>
-                <th className="px-5 py-4 text-right font-medium">Actions</th>
+                <th className="px-5 py-4 text-right font-medium">
+                  Actions
+                </th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="px-5 py-12 text-center">
+                    <Loader2 className="mx-auto animate-spin text-blue-600" />
+                    <p className="mt-2 text-gray-500">
+                      Loading users...
+                    </p>
+                  </td>
+                </tr>
+              ) : users.length > 0 ? (
+                users.map((user) => (
                   <tr
-                    key={user.id}
+                    key={user._id}
                     className="border-t border-gray-100 hover:bg-gray-50"
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            user.name
-                          )}&background=eff6ff&color=2563eb`}
+                          src={
+                            user.avatar ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                              user.name
+                            )}&background=eff6ff&color=2563eb`
+                          }
                           alt={user.name}
-                          className="h-10 w-10 rounded-full"
+                          className="h-10 w-10 rounded-full object-cover"
                         />
 
                         <div>
                           <p className="font-semibold text-gray-900">
                             {user.name}
                           </p>
+
                           <p className="text-xs text-gray-500">
                             {user.email}
                           </p>
@@ -272,33 +406,34 @@ function UsersManagement() {
                     </td>
 
                     <td className="px-5 py-4 text-gray-600">
-                      {user.phone}
+                      {user.phone || "N/A"}
                     </td>
 
                     <td className="px-5 py-4">
-                      <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
+                      <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium capitalize text-purple-700">
                         {user.role}
                       </span>
                     </td>
 
                     <td className="px-5 py-4 text-gray-500">
-                      {user.joined}
+                      {formatDate(user.createdAt)}
                     </td>
 
                     <td className="px-5 py-4">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-medium ${
-                          user.status === "Active"
+                          user.isActive
                             ? "bg-green-50 text-green-700"
                             : "bg-red-50 text-red-700"
                         }`}
                       >
-                        {user.status}
+                        {getStatusLabel(user.isActive)}
                       </span>
                     </td>
 
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
+                        {/* VIEW */}
                         <button
                           onClick={() => setSelectedUser(user)}
                           title="View user"
@@ -307,23 +442,59 @@ function UsersManagement() {
                           <Eye size={17} />
                         </button>
 
+                        {/* ACTIVATE / DEACTIVATE */}
                         <button
-                          onClick={() => toggleStatus(user.id)}
+                          onClick={() => toggleStatus(user)}
+                          disabled={
+                            updatingId === user._id ||
+                            deletingId === user._id ||
+                            user._id === currentUser?._id ||
+                            user.role === "admin"
+                          }
                           title={
-                            user.status === "Active"
+                            user.role === "admin"
+                              ? "Admin account"
+                              : user.isActive
                               ? "Deactivate user"
                               : "Activate user"
                           }
-                          className={`rounded-lg p-2 ${
-                            user.status === "Active"
+                          className={`rounded-lg p-2 disabled:cursor-not-allowed disabled:opacity-40 ${
+                            user.isActive
                               ? "text-red-500 hover:bg-red-50"
                               : "text-green-600 hover:bg-green-50"
                           }`}
                         >
-                          {user.status === "Active" ? (
+                          {updatingId === user._id ? (
+                            <Loader2
+                              size={17}
+                              className="animate-spin"
+                            />
+                          ) : user.isActive ? (
                             <Ban size={17} />
                           ) : (
                             <CheckCircle size={17} />
+                          )}
+                        </button>
+
+                        {/* DELETE */}
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={
+                            deletingId === user._id ||
+                            updatingId === user._id ||
+                            user._id === currentUser?._id ||
+                            user.role === "admin"
+                          }
+                          title="Delete user account"
+                          className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {deletingId === user._id ? (
+                            <Loader2
+                              size={17}
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <Trash2 size={17} />
                           )}
                         </button>
                       </div>
@@ -343,9 +514,42 @@ function UsersManagement() {
             </tbody>
           </table>
         </div>
+
+        {/* PAGINATION */}
+        {!loading && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-100 px-5 py-4">
+            <p className="text-sm text-gray-500">
+              Page {pagination.currentPage} of {pagination.totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  fetchUsers(pagination.currentPage - 1)
+                }
+                disabled={pagination.currentPage <= 1}
+                className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <button
+                onClick={() =>
+                  fetchUsers(pagination.currentPage + 1)
+                }
+                disabled={
+                  pagination.currentPage >= pagination.totalPages
+                }
+                className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* User Details Modal */}
+      {/* USER DETAILS MODAL */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
@@ -364,11 +568,14 @@ function UsersManagement() {
 
             <div className="flex flex-col items-center">
               <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  selectedUser.name
-                )}&background=eff6ff&color=2563eb&size=120`}
+                src={
+                  selectedUser.avatar ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    selectedUser.name
+                  )}&background=eff6ff&color=2563eb&size=120`
+                }
                 alt={selectedUser.name}
-                className="h-24 w-24 rounded-full"
+                className="h-24 w-24 rounded-full object-cover"
               />
 
               <h3 className="mt-4 text-lg font-bold text-gray-900">
@@ -384,13 +591,13 @@ function UsersManagement() {
               <div className="flex justify-between gap-3">
                 <span className="text-gray-500">Phone</span>
                 <span className="font-medium text-gray-900">
-                  {selectedUser.phone}
+                  {selectedUser.phone || "N/A"}
                 </span>
               </div>
 
               <div className="flex justify-between gap-3">
                 <span className="text-gray-500">Role</span>
-                <span className="font-medium text-gray-900">
+                <span className="font-medium capitalize text-gray-900">
                   {selectedUser.role}
                 </span>
               </div>
@@ -398,25 +605,60 @@ function UsersManagement() {
               <div className="flex justify-between gap-3">
                 <span className="text-gray-500">Joined</span>
                 <span className="font-medium text-gray-900">
-                  {selectedUser.joined}
+                  {formatDate(selectedUser.createdAt)}
                 </span>
               </div>
 
               <div className="flex justify-between gap-3">
                 <span className="text-gray-500">Account Status</span>
                 <span className="font-medium text-gray-900">
-                  {selectedUser.status}
+                  {getStatusLabel(selectedUser.isActive)}
                 </span>
               </div>
             </div>
 
+            {/* STATUS BUTTON */}
             <button
-              onClick={() => toggleStatus(selectedUser.id)}
-              className="w-full rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700"
+              onClick={() => toggleStatus(selectedUser)}
+              disabled={
+                updatingId === selectedUser._id ||
+                deletingId === selectedUser._id ||
+                selectedUser._id === currentUser?._id ||
+                selectedUser.role === "admin"
+              }
+              className="mb-3 w-full rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {selectedUser.status === "Active"
-                ? "Deactivate Account"
-                : "Activate Account"}
+              {updatingId === selectedUser._id ? (
+                "Updating..."
+              ) : selectedUser.isActive ? (
+                "Deactivate Account"
+              ) : (
+                "Activate Account"
+              )}
+            </button>
+
+            {/* DELETE BUTTON */}
+            <button
+              onClick={() => handleDeleteUser(selectedUser)}
+              disabled={
+                deletingId === selectedUser._id ||
+                updatingId === selectedUser._id ||
+                selectedUser._id === currentUser?._id ||
+                selectedUser.role === "admin"
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-5 py-3 font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deletingId === selectedUser._id ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={18} />
+                  Delete Account
+                </>
+              )}
             </button>
           </div>
         </div>

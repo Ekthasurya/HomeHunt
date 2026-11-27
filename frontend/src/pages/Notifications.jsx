@@ -1,6 +1,8 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+
 import {
   Bell,
   Check,
@@ -9,106 +11,88 @@ import {
   Home,
   CalendarDays,
   MessageCircle,
-  CreditCard,
-  User,
   Settings,
   BellOff,
 } from "lucide-react";
 
-const initialNotifications = [
-  {
-    id: 1,
-    title: "Visit Request Approved",
-    description:
-      "Your property visit request for Luxury Modern Apartment has been approved.",
-    time: "10 minutes ago",
-    type: "visit",
-    read: false,
-  },
-  {
-    id: 2,
-    title: "New Message Received",
-    description: "Rahul Sharma sent you a message about your property inquiry.",
-    time: "1 hour ago",
-    type: "message",
-    read: false,
-  },
-  {
-    id: 3,
-    title: "Property Added Successfully",
-    description: "Your property listing has been submitted for review.",
-    time: "Yesterday",
-    type: "property",
-    read: true,
-  },
-  {
-    id: 4,
-    title: "Payment Confirmation",
-    description: "Your booking payment has been received successfully.",
-    time: "2 days ago",
-    type: "payment",
-    read: true,
-  },
-  {
-    id: 5,
-    title: "Profile Updated",
-    description: "Your account profile information was updated.",
-    time: "3 days ago",
-    type: "profile",
-    read: true,
-  },
-];
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  removeNotification,
+} from "../app/slices/notificationSlice";
 
 const notificationIcons = {
-  visit: CalendarDays,
-  message: MessageCircle,
-  property: Home,
-  payment: CreditCard,
-  profile: User,
+  new_message: MessageCircle,
+  visit_request: CalendarDays,
+  visit_confirmed: CalendarDays,
+  visit_rejected: CalendarDays,
+  visit_cancelled: CalendarDays,
+  system: Settings,
 };
 
 const iconColors = {
-  visit: "bg-green-100 text-green-600",
-  message: "bg-blue-100 text-blue-600",
-  property: "bg-purple-100 text-purple-600",
-  payment: "bg-orange-100 text-orange-600",
-  profile: "bg-gray-100 text-gray-600",
+  new_message: "bg-blue-100 text-blue-600",
+  visit_request: "bg-green-100 text-green-600",
+  visit_confirmed: "bg-green-100 text-green-600",
+  visit_rejected: "bg-red-100 text-red-600",
+  visit_cancelled: "bg-orange-100 text-orange-600",
+  system: "bg-purple-100 text-purple-600",
+};
+
+const formatTime = (date) => {
+  if (!date) return "";
+
+  const notificationDate = new Date(date);
+
+  if (Number.isNaN(notificationDate.getTime())) return "";
+
+  return notificationDate.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 };
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const dispatch = useDispatch();
+
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+  } = useSelector((state) => state.notifications);
+
   const [filter, setFilter] = useState("all");
 
-  const unreadCount = notifications.filter((item) => !item.read).length;
+  // Fetch notifications from MongoDB
+  useEffect(() => {
+    dispatch(fetchNotifications());
+  }, [dispatch]);
 
   const filteredNotifications = notifications.filter((item) => {
-    if (filter === "unread") return !item.read;
-    if (filter === "read") return item.read;
+    if (filter === "unread") return !item.isRead;
+    if (filter === "read") return item.isRead;
     return true;
   });
 
+  // Mark one notification as read
   const markAsRead = (id) => {
-    setNotifications((previous) =>
-      previous.map((item) =>
-        item.id === id ? { ...item, read: true } : item
-      )
-    );
+    dispatch(markNotificationRead(id));
   };
 
+  // Mark all notifications as read
   const markAllAsRead = () => {
-    setNotifications((previous) =>
-      previous.map((item) => ({ ...item, read: true }))
-    );
+    dispatch(markAllNotificationsRead());
   };
 
+  // Delete one notification
   const deleteNotification = (id) => {
-    setNotifications((previous) =>
-      previous.filter((item) => item.id !== id)
-    );
+    dispatch(removeNotification(id));
   };
 
-  const clearAll = () => {
-    setNotifications([]);
+  const getNotificationIcon = (type) => {
+    return notificationIcons[type] || Settings;
   };
 
   return (
@@ -118,7 +102,10 @@ export default function Notifications() {
         {/* Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <Link to="/" className="text-sm text-gray-500 hover:text-blue-600">
+            <Link
+              to="/"
+              className="text-sm text-gray-500 hover:text-blue-600"
+            >
               Home / Notifications
             </Link>
 
@@ -131,25 +118,14 @@ export default function Notifications() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={markAllAsRead}
-              disabled={unreadCount === 0}
-              className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-            >
-              <CheckCheck size={17} />
-              Mark all read
-            </button>
-
-            <button
-              onClick={clearAll}
-              disabled={notifications.length === 0}
-              className="flex items-center gap-2 rounded-xl border border-red-100 bg-white px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 disabled:opacity-50"
-            >
-              <Trash2 size={17} />
-              Clear all
-            </button>
-          </div>
+          <button
+            onClick={markAllAsRead}
+            disabled={unreadCount === 0 || loading}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            <CheckCheck size={17} />
+            Mark all read
+          </button>
         </div>
 
         {/* Summary */}
@@ -158,7 +134,11 @@ export default function Notifications() {
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <Bell size={21} />
             </div>
-            <p className="text-sm text-gray-500">Total Notifications</p>
+
+            <p className="text-sm text-gray-500">
+              Total Notifications
+            </p>
+
             <h2 className="mt-1 text-2xl font-bold text-gray-900">
               {notifications.length}
             </h2>
@@ -168,7 +148,11 @@ export default function Notifications() {
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
               <Bell size={21} />
             </div>
-            <p className="text-sm text-gray-500">Unread Notifications</p>
+
+            <p className="text-sm text-gray-500">
+              Unread Notifications
+            </p>
+
             <h2 className="mt-1 text-2xl font-bold text-gray-900">
               {unreadCount}
             </h2>
@@ -178,9 +162,13 @@ export default function Notifications() {
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-600">
               <Check size={21} />
             </div>
-            <p className="text-sm text-gray-500">Read Notifications</p>
+
+            <p className="text-sm text-gray-500">
+              Read Notifications
+            </p>
+
             <h2 className="mt-1 text-2xl font-bold text-gray-900">
-              {notifications.length - unreadCount}
+              {Math.max(0, notifications.length - unreadCount)}
             </h2>
           </div>
         </div>
@@ -214,21 +202,39 @@ export default function Notifications() {
 
         {/* Notification List */}
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          {filteredNotifications.length > 0 ? (
+
+          {loading ? (
+            <div className="py-16 text-center text-gray-500">
+              Loading notifications...
+            </div>
+          ) : error ? (
+            <div className="px-6 py-16 text-center">
+              <p className="font-semibold text-red-500">{error}</p>
+
+              <button
+                onClick={() => dispatch(fetchNotifications())}
+                className="mt-4 font-semibold text-blue-600 hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : filteredNotifications.length > 0 ? (
             filteredNotifications.map((notification) => {
-              const Icon =
-                notificationIcons[notification.type] || Settings;
+              const Icon = getNotificationIcon(notification.type);
 
               return (
                 <div
-                  key={notification.id}
+                  key={notification._id}
                   className={`flex flex-col gap-4 border-b border-gray-100 p-5 transition last:border-0 sm:flex-row sm:items-start ${
-                    !notification.read ? "bg-blue-50/50" : "bg-white"
+                    !notification.isRead
+                      ? "bg-blue-50/50"
+                      : "bg-white"
                   }`}
                 >
                   <div
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                      iconColors[notification.type]
+                      iconColors[notification.type] ||
+                      "bg-gray-100 text-gray-600"
                     }`}
                   >
                     <Icon size={22} />
@@ -240,24 +246,24 @@ export default function Notifications() {
                         {notification.title}
                       </h3>
 
-                      {!notification.read && (
+                      {!notification.isRead && (
                         <span className="h-2 w-2 rounded-full bg-blue-600" />
                       )}
                     </div>
 
                     <p className="mt-1 text-sm leading-6 text-gray-600">
-                      {notification.description}
+                      {notification.message}
                     </p>
 
                     <p className="mt-2 text-xs text-gray-400">
-                      {notification.time}
+                      {formatTime(notification.createdAt)}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {!notification.read && (
+                    {!notification.isRead && (
                       <button
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={() => markAsRead(notification._id)}
                         title="Mark as read"
                         className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
                       >
@@ -266,7 +272,9 @@ export default function Notifications() {
                     )}
 
                     <button
-                      onClick={() => deleteNotification(notification.id)}
+                      onClick={() =>
+                        deleteNotification(notification._id)
+                      }
                       title="Delete notification"
                       className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500"
                     >

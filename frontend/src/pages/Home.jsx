@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -14,67 +15,30 @@ import {
   Heart,
 } from "lucide-react";
 
-const properties = [
-  {
-    id: 1,
-    title: "Modern Family Villa",
-    location: "New Town, Kolkata",
-    price: "₹85 Lac",
-    beds: 4,
-    baths: 3,
-    area: "2,400 sq.ft.",
-    type: "For Sale",
-    image:
-      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=900&q=85",
-  },
-  {
-    id: 2,
-    title: "Luxury Apartment",
-    location: "Salt Lake, Kolkata",
-    price: "₹35,000/month",
-    beds: 3,
-    baths: 2,
-    area: "1,650 sq.ft.",
-    type: "For Rent",
-    image:
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=85",
-  },
-  {
-    id: 3,
-    title: "Premium Modern House",
-    location: "Rajarhat, Kolkata",
-    price: "₹1.2 Cr",
-    beds: 4,
-    baths: 4,
-    area: "2,800 sq.ft.",
-    type: "For Sale",
-    image:
-      "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=900&q=85",
-  },
-];
+import useProperties from "../hooks/useProperties";
 
 const locations = [
   {
     name: "Kolkata",
-    properties: "1,200+ Properties",
+    properties: "Explore Properties",
     image:
       "https://images.unsplash.com/photo-1558431382-27e303142255?auto=format&fit=crop&w=700&q=85",
   },
   {
     name: "Mumbai",
-    properties: "950+ Properties",
+    properties: "Explore Properties",
     image:
       "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&w=700&q=85",
   },
   {
     name: "Bengaluru",
-    properties: "850+ Properties",
+    properties: "Explore Properties",
     image:
       "https://images.unsplash.com/photo-1596176530529-78163a4f7af2?auto=format&fit=crop&w=700&q=85",
   },
   {
     name: "Delhi",
-    properties: "700+ Properties",
+    properties: "Explore Properties",
     image:
       "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=700&q=85",
   },
@@ -101,13 +65,39 @@ const benefits = [
   },
 ];
 
+const formatPrice = (price, listingType) => {
+  const formattedPrice = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(price || 0);
+
+  return listingType === "rent"
+    ? `${formattedPrice}/month`
+    : formattedPrice;
+};
+
+const formatArea = (area, areaUnit) => {
+  return `${Number(area || 0).toLocaleString("en-IN")} ${areaUnit || "sqft"}`;
+};
+
 export default function Home() {
   const navigate = useNavigate();
+
+  const { properties, loading, error } = useProperties();
 
   const [activeTab, setActiveTab] = useState("Buy");
   const [location, setLocation] = useState("");
   const [propertyType, setPropertyType] = useState("Any Property");
   const [budget, setBudget] = useState("Any Budget");
+
+  // Show featured properties first, then other available properties.
+  const featuredProperties = [...properties]
+    .filter((property) => property.status === "available")
+    .sort(
+      (a, b) => Number(b.isFeatured) - Number(a.isFeatured)
+    )
+    .slice(0, 3);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -155,7 +145,6 @@ export default function Home() {
 
             {/* SEARCH BOX */}
             <div className="bg-white rounded-2xl p-4 sm:p-6 mt-10 shadow-2xl">
-              {/* TABS */}
               <div className="flex gap-3 mb-6">
                 {["Buy", "Rent", "Sell"].map((tab) => (
                   <button
@@ -279,72 +268,124 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-            {properties.map((property) => (
-              <article
-                key={property.id}
-                className="bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-xl transition group"
-              >
-                <div className="relative h-60 overflow-hidden">
-                  <img
-                    src={property.image}
-                    alt={property.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                  />
+          {/* LOADING STATE */}
+          {loading && (
+            <div className="text-center py-16">
+              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-slate-500 mt-4">
+                Loading properties...
+              </p>
+            </div>
+          )}
 
-                  <span className="absolute top-4 left-4 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-md">
-                    {property.type}
-                  </span>
+          {/* ERROR STATE */}
+          {!loading && error && (
+            <div className="text-center py-12 bg-white rounded-xl border border-red-200">
+              <p className="text-red-600 font-medium">{error}</p>
+              <p className="text-slate-500 text-sm mt-2">
+                Please try refreshing the page.
+              </p>
+            </div>
+          )}
 
-                  <button
-                    aria-label="Save property"
-                    className="absolute top-4 right-4 bg-white p-2.5 rounded-full text-slate-700 hover:text-red-500 transition"
-                  >
-                    <Heart size={19} />
-                  </button>
-                </div>
+          {/* EMPTY STATE */}
+          {!loading && !error && featuredProperties.length === 0 && (
+            <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
+              <House size={40} className="text-slate-400 mx-auto" />
+              <h3 className="text-xl font-semibold text-slate-800 mt-4">
+                No Properties Available
+              </h3>
+              <p className="text-slate-500 mt-2">
+                New properties will appear here when they are listed.
+              </p>
+            </div>
+          )}
 
-                <div className="p-5">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {property.price}
+          {/* PROPERTY CARDS */}
+          {!loading && !error && featuredProperties.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+              {featuredProperties.map((property) => (
+                <article
+                  key={property._id}
+                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-xl transition group"
+                >
+                  <div className="relative h-60 overflow-hidden">
+                    <img
+                      src={
+                        property.images?.[0]?.url ||
+                        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=900&q=85"
+                      }
+                      alt={property.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    />
+
+                    <span className="absolute top-4 left-4 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-md">
+                      {property.listingType === "rent"
+                        ? "For Rent"
+                        : "For Sale"}
+                    </span>
+
+                    {property.isVerified && (
+                      <span className="absolute bottom-4 left-4 bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-md">
+                        Verified
+                      </span>
+                    )}
+
+                    <button
+                      aria-label="Save property"
+                      className="absolute top-4 right-4 bg-white p-2.5 rounded-full text-slate-700 hover:text-red-500 transition"
+                    >
+                      <Heart size={19} />
+                    </button>
                   </div>
 
-                  <h3 className="text-xl font-bold text-slate-900 mt-3">
-                    {property.title}
-                  </h3>
+                  <div className="p-5">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatPrice(property.price, property.listingType)}
+                    </div>
 
-                  <p className="flex items-center gap-2 text-slate-500 text-sm mt-2">
-                    <MapPin size={16} />
-                    {property.location}
-                  </p>
+                    <h3 className="text-xl font-bold text-slate-900 mt-3">
+                      {property.title}
+                    </h3>
 
-                  <div className="grid grid-cols-3 border-t border-slate-100 mt-5 pt-5 text-sm text-slate-600">
-                    <span className="flex items-center gap-2">
-                      <BedDouble size={17} />
-                      {property.beds} Beds
-                    </span>
+                    <p className="flex items-center gap-2 text-slate-500 text-sm mt-2">
+                      <MapPin size={16} />
+                      {property.location?.address},{" "}
+                      {property.location?.city}
+                    </p>
 
-                    <span className="flex items-center gap-2">
-                      <Bath size={17} />
-                      {property.baths} Baths
-                    </span>
+                    <div className="grid grid-cols-3 border-t border-slate-100 mt-5 pt-5 text-sm text-slate-600">
+                      <span className="flex items-center gap-2">
+                        <BedDouble size={17} />
+                        {property.propertyType === "plot"
+                          ? "Plot"
+                          : `${property.bedrooms} Beds`}
+                      </span>
 
-                    <span className="flex items-center gap-2">
-                      <Maximize size={17} />
-                      {property.area}
-                    </span>
+                      <span className="flex items-center gap-2">
+                        <Bath size={17} />
+                        {property.propertyType === "plot"
+                          ? "Land"
+                          : `${property.bathrooms} Baths`}
+                      </span>
+
+                      <span className="flex items-center gap-2">
+                        <Maximize size={17} />
+                        {formatArea(property.area, property.areaUnit)}
+                      </span>
+                    </div>
+
+                    <Link
+                      to={`/properties?property=${property._id}`}
+                      className="block text-center bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-800 font-semibold rounded-lg py-3 mt-5 transition"
+                    >
+                      View Details
+                    </Link>
                   </div>
-
-                  <Link
-                    to={`/properties?property=${property.id}`}  
-                    className="block text-center bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-800 font-semibold rounded-lg py-3 mt-5 transition"
-                  >
-                    View Details
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -381,7 +422,9 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
                 <div className="absolute bottom-6 left-6 text-white">
-                  <h3 className="text-2xl font-bold">{location.name}</h3>
+                  <h3 className="text-2xl font-bold">
+                    {location.name}
+                  </h3>
 
                   <p className="text-sm text-slate-200 mt-2">
                     {location.properties}
